@@ -1,0 +1,45 @@
+{
+  "name": "@derekurban/grafquery",
+  "version": "0.0.0-dev",
+  "description": "grafquery CLI for querying Grafana logs, metrics, and traces",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/derekurban/grafana-query.git"
+  },
+  "homepage": "https://github.com/derekurban/grafana-query",
+  "bugs": {
+    "url": "https://github.com/derekurban/grafana-query/issues"
+  },
+  "bin": {
+    "grafquery": "bin/grafquery.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "keywords": [
+    "grafana",
+    "cli",
+    "observability",
+    "logs",
+    "metrics",
+    "traces"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

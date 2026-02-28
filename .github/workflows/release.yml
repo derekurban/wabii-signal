@@ -23,6 +23,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Run tests
         run: go test ./...
 
@@ -54,3 +60,17 @@ jobs:
           files: |
             dist/checksums.txt.sig
             dist/checksums.txt.pem
+
+      - name: Prepare npm package version
+        run: node scripts/release/prepare-npm-package.mjs "${GITHUB_REF_NAME}"
+
+      - name: Publish npm package
+        run: |
+          if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
+            echo "Skipping npm publish; NPM_TOKEN not configured."
+            exit 0
+          fi
+          npm publish --access public
+        working-directory: packaging/npm-grafquery-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
