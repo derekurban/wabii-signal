@@ -23,11 +23,32 @@ Unified observability CLI for the Grafana stack.
 - [x] `grafquery dash list`
 - [x] `grafquery dash run <uid> --panel "..."`
 
-## Quick start
+## Install
+
+### One-command install (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/derekurban/grafana-query/main/install.sh | bash
+```
+
+PowerShell (Windows):
+
+```powershell
+irm https://raw.githubusercontent.com/derekurban/grafana-query/main/install.ps1 | iex
+```
+
+Installer supports secure release verification and controlled fallback options.
+See: [`docs/INSTALL.md`](docs/INSTALL.md)
+
+### Go install
 
 ```bash
 go install github.com/derekurban/grafana-query@latest
+```
 
+## Quick start
+
+```bash
 # initialize
 
 grafquery init --url https://grafana.company.io --token "$GRAFANA_TOKEN" --context-name production
