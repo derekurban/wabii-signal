@@ -1,5 +1,5 @@
 {
-  "name": "@derekurban/grafquery",
+  "name": "grafquery",
   "version": "0.0.0-dev",
   "description": "grafquery CLI for querying Grafana logs, metrics, and traces",
   "license": "MIT",

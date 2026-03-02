@@ -70,7 +70,7 @@ jobs:
             echo "Skipping npm publish; NPM_TOKEN not configured."
             exit 0
           fi
-          npm publish --access public
+          npm publish
         working-directory: packaging/npm-grafquery-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

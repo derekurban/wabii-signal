@@ -8,7 +8,7 @@ const binaryName = process.platform === "win32" ? "grafquery.exe" : "grafquery";
 const binaryPath = path.join(__dirname, binaryName);
 
 if (!fs.existsSync(binaryPath)) {
-  console.error("grafquery binary is missing. Reinstall @derekurban/grafquery.");
+  console.error("grafquery binary is missing. Reinstall grafquery.");
   process.exit(1);
 }
 

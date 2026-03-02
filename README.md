@@ -49,7 +49,7 @@ go install github.com/derekurban/grafana-query@latest
 ### npm install
 
 ```bash
-npm install -g @derekurban/grafquery
+npm install -g grafquery
 ```
 
 ### Local observability stack (Docker)
@@ -70,7 +70,7 @@ Pushing a semantic version tag like `v0.1.0` triggers:
 - `checksums.txt` generation
 - Sigstore `cosign` signing of checksums (`checksums.txt.sig`, `checksums.txt.pem`)
 - GitHub Release publish with artifacts
-- npm publish of `@derekurban/grafquery` when `NPM_TOKEN` is configured in repo secrets
+- npm publish of `grafquery` when `NPM_TOKEN` is configured in repo secrets
 
 ### Create the next tag
 
