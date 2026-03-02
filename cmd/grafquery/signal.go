@@ -138,17 +138,65 @@ func newTracesGetCmd(opts *GlobalOptions) *cobra.Command {
 		Short: "Fetch a specific trace by ID",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			expr := fmt.Sprintf("{ trace_id = \"%s\" }", args[0])
-			if since == "" {
-				since = "24h"
-			}
-			if limit == 0 {
-				limit = 50
-			}
-			return runSignalOnce(opts, "traces", expr, since, "", "", limit, true, false)
+			return runTraceGetByID(opts, args[0], since, "", "", limit)
 		},
 	}
 	cmd.Flags().StringVar(&since, "since", "24h", "Lookback range")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Result limit")
 	return cmd
+}
+
+func runTraceGetByID(opts *GlobalOptions, traceID, since, from, to string, limit int) error {
+	cl, _, ctxCfg, _, err := buildClient(opts)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+
+	ds, err := resolveSignalSource(ctx, cl, "traces", ctxCfg)
+	if err != nil {
+		return err
+	}
+
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" {
+		return fmt.Errorf("trace id is required")
+	}
+	if since == "" {
+		since = "24h"
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+
+	f, t, err := util.ResolveGrafanaRange(since, from, to)
+	if err != nil {
+		return err
+	}
+
+	payload := grafana.QueryPayload{
+		RefID:      "A",
+		Datasource: map[string]any{"uid": ds.UID, "type": ds.Type},
+		QueryType:  "traceId",
+		Raw: map[string]any{
+			"query": traceID,
+			"limit": limit,
+		},
+	}
+
+	resp, err := cl.Query(ctx, grafana.QueryRequest{From: f, To: t, Queries: []grafana.QueryPayload{payload}})
+	if err != nil {
+		return err
+	}
+	rows, _ := grafana.FrameRows(resp)
+	mode := opts.Output
+	if mode == "auto" {
+		if d := strings.TrimSpace(ctxCfg.Defaults.Output); d != "" {
+			mode = d
+		} else {
+			mode = "table"
+		}
+	}
+	return renderByOutput(mode, resp, rows)
 }

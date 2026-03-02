@@ -101,6 +101,22 @@ You can replace `--patch` with `--minor` or `--major`.
 - `grafquery local info` (shows OTLP endpoints + Grafana URL/username/password/service token)
 - `grafquery local purge` (removes containers, volumes, local files, and local context)
 
+## Local e2e smoke test
+
+PowerShell (Windows):
+
+```powershell
+./scripts/e2e-local-stack.ps1 -PurgeFirst
+```
+
+This script validates the full local flow:
+- installs/builds `grafquery`
+- runs `grafquery local setup`
+- authenticates to the emitted Grafana URL using the emitted service token
+- sends one metric + one trace to local OTLP HTTP
+- pushes one labeled log entry to local Loki (`app` + `test_run`)
+- verifies metrics/traces through `grafquery` and log label queryability through Grafana's datasource API
+
 ## Quick start
 
 ```bash

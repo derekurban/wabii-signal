@@ -626,6 +626,7 @@ const dockerComposeYAML = `services:
   tempo:
     image: grafana/tempo:2.5.0
     container_name: grafquery-tempo
+    user: "0"
     command: [ "-config.file=/etc/tempo/tempo.yaml" ]
     ports:
       - "13200:3200"
@@ -726,7 +727,9 @@ const otelCollectorYAML = `receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: 0.0.0.0:4317
       http:
+        endpoint: 0.0.0.0:4318
 
 processors:
   batch: {}
