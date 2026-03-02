@@ -19,10 +19,11 @@ import (
 const (
 	defaultProjectName = "grafquery-local"
 	stateFileName      = "state.json"
+	envFileName        = ".env"
 
-	DefaultGrafanaURL      = "http://localhost:13000"
-	DefaultGrafanaUser     = "admin"
-	DefaultGrafanaPassword = "admin"
+	DefaultGrafanaURL           = "http://localhost:13000"
+	DefaultGrafanaAdminUser     = "admin"
+	DefaultGrafanaAdminPassword = "admin"
 
 	DefaultOTLPGRPCEndpoint = "localhost:4317"
 	DefaultOTLPHTTPEndpoint = "http://localhost:4318"
@@ -33,10 +34,12 @@ const (
 )
 
 type State struct {
-	GrafanaURL   string    `json:"grafana_url"`
-	GrafanaToken string    `json:"grafana_token"`
-	ContextName  string    `json:"context_name"`
-	CreatedAtUTC time.Time `json:"created_at_utc"`
+	GrafanaURL      string    `json:"grafana_url"`
+	GrafanaUser     string    `json:"grafana_user"`
+	GrafanaPassword string    `json:"grafana_password"`
+	GrafanaToken    string    `json:"grafana_token"`
+	ContextName     string    `json:"context_name"`
+	CreatedAtUTC    time.Time `json:"created_at_utc"`
 }
 
 func DefaultRootDir() (string, error) {
@@ -76,7 +79,78 @@ func EnsureScaffold(rootDir string) error {
 		}
 	}
 
+	envPath := filepath.Join(rootDir, envFileName)
+	if _, err := os.Stat(envPath); errors.Is(err, os.ErrNotExist) {
+		if err := WriteGrafanaEnv(rootDir, DefaultGrafanaAdminUser, DefaultGrafanaAdminPassword); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func WriteGrafanaEnv(rootDir, username, password string) error {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		username = DefaultGrafanaAdminUser
+	}
+	if password == "" {
+		password = DefaultGrafanaAdminPassword
+	}
+	if strings.Contains(username, "\n") || strings.Contains(username, "\r") {
+		return errors.New("grafana username cannot contain newlines")
+	}
+	if strings.Contains(password, "\n") || strings.Contains(password, "\r") {
+		return errors.New("grafana password cannot contain newlines")
+	}
+
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		return err
+	}
+
+	content := fmt.Sprintf(
+		"GRAFANA_ADMIN_USER=%s\nGRAFANA_ADMIN_PASSWORD=%s\n",
+		dotenvValue(username),
+		dotenvValue(password),
+	)
+	return os.WriteFile(filepath.Join(rootDir, envFileName), []byte(content), 0o600)
+}
+
+func LoadGrafanaCredentials(rootDir string) (string, string, error) {
+	user := DefaultGrafanaAdminUser
+	pass := DefaultGrafanaAdminPassword
+
+	b, err := os.ReadFile(filepath.Join(rootDir, envFileName))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return user, pass, nil
+		}
+		return "", "", err
+	}
+
+	lines := strings.Split(string(b), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := parseDotenvValue(parts[1])
+		switch key {
+		case "GRAFANA_ADMIN_USER":
+			if strings.TrimSpace(value) != "" {
+				user = strings.TrimSpace(value)
+			}
+		case "GRAFANA_ADMIN_PASSWORD":
+			pass = value
+		}
+	}
+
+	return user, pass, nil
 }
 
 func CheckDockerReady() error {
@@ -149,7 +223,7 @@ func Purge(rootDir string) error {
 	return nil
 }
 
-func WaitForGrafana(ctx context.Context, baseURL, username, password string) error {
+func WaitForGrafana(ctx context.Context, baseURL string) error {
 	healthURL := strings.TrimRight(baseURL, "/") + "/api/health"
 	var lastErr error
 	for {
@@ -157,7 +231,6 @@ func WaitForGrafana(ctx context.Context, baseURL, username, password string) err
 		if err != nil {
 			return err
 		}
-		req.SetBasicAuth(username, password)
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil && resp != nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
@@ -283,6 +356,31 @@ func writeFileIfChanged(path, content string, perm os.FileMode) error {
 		}
 	}
 	return os.WriteFile(path, []byte(content), perm)
+}
+
+func dotenvValue(v string) string {
+	if v == "" {
+		return "\"\""
+	}
+	escaped := strings.ReplaceAll(v, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	return `"` + escaped + `"`
+}
+
+func parseDotenvValue(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) >= 2 {
+		if strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
+			inner := v[1 : len(v)-1]
+			inner = strings.ReplaceAll(inner, `\"`, `"`)
+			inner = strings.ReplaceAll(inner, `\\`, `\`)
+			return inner
+		}
+		if strings.HasPrefix(v, `'`) && strings.HasSuffix(v, `'`) {
+			return v[1 : len(v)-1]
+		}
+	}
+	return v
 }
 
 func ensureServiceAccount(ctx context.Context, baseURL, username, password, name string) (int, error) {
@@ -421,8 +519,8 @@ const dockerComposeYAML = `services:
     image: grafana/grafana-oss:11.1.4
     container_name: grafquery-grafana
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "13000:3000"

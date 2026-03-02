@@ -32,7 +32,7 @@ func newLocalCmd(opts *GlobalOptions) *cobra.Command {
 		Use:   "local",
 		Short: "Manage a local Grafana/Loki/Prometheus/Tempo stack in Docker",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLocalSetup(opts, dirFlag, defaultLocalContextName, false, true)
+			return runLocalSetup(opts, dirFlag, defaultLocalContextName, "", "", false, true)
 		},
 	}
 
@@ -49,6 +49,8 @@ func newLocalCmd(opts *GlobalOptions) *cobra.Command {
 
 func newLocalSetupCmd(opts *GlobalOptions, dirFlag *string) *cobra.Command {
 	var contextName string
+	var grafanaUser string
+	var grafanaPassword string
 	var nonInteractive bool
 	var switchContext bool
 
@@ -56,11 +58,13 @@ func newLocalSetupCmd(opts *GlobalOptions, dirFlag *string) *cobra.Command {
 		Use:   "setup",
 		Short: "Interactive setup for local stack + grafquery context",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLocalSetup(opts, *dirFlag, contextName, nonInteractive, switchContext)
+			return runLocalSetup(opts, *dirFlag, contextName, grafanaUser, grafanaPassword, nonInteractive, switchContext)
 		},
 	}
 
 	cmd.Flags().StringVar(&contextName, "context-name", defaultLocalContextName, "Context name to write in config")
+	cmd.Flags().StringVar(&grafanaUser, "grafana-user", "", "Grafana admin username for local stack (default: admin)")
+	cmd.Flags().StringVar(&grafanaPassword, "grafana-password", "", "Grafana admin password for local stack (default: admin)")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip confirmation prompts")
 	cmd.Flags().BoolVar(&switchContext, "switch-context", true, "Set the created context as current context")
 
@@ -87,12 +91,18 @@ func newLocalUpCmd(dirFlag *string) *cobra.Command {
 			if waitForGrafana {
 				ctx, cancel := context.WithTimeout(context.Background(), localGrafanaWaitTimeout)
 				defer cancel()
-				if err := localstack.WaitForGrafana(ctx, localstack.DefaultGrafanaURL, localstack.DefaultGrafanaUser, localstack.DefaultGrafanaPassword); err != nil {
+				if err := localstack.WaitForGrafana(ctx, localstack.DefaultGrafanaURL); err != nil {
 					return err
 				}
 			}
+			user, pass, err := localstack.LoadGrafanaCredentials(rootDir)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("Local stack is running in %s\n", rootDir)
 			fmt.Printf("Grafana: %s\n", localstack.DefaultGrafanaURL)
+			fmt.Printf("Grafana user: %s\n", user)
+			fmt.Printf("Grafana password: %s\n", pass)
 			fmt.Printf("OTLP gRPC: %s\n", localstack.DefaultOTLPGRPCEndpoint)
 			fmt.Printf("OTLP HTTP: %s\n", localstack.DefaultOTLPHTTPEndpoint)
 			return nil
@@ -143,16 +153,30 @@ func newLocalStatusCmd(dirFlag *string) *cobra.Command {
 func newLocalInfoCmd(opts *GlobalOptions, dirFlag *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "info",
-		Short: "Show local OTLP endpoints and grafquery token/context details",
+		Short: "Show local OTLP endpoints plus Grafana URL/credentials/token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rootDir, err := localstack.ResolveRootDir(*dirFlag)
 			if err != nil {
 				return err
 			}
 
+			grafanaURL := localstack.DefaultGrafanaURL
+			grafanaUser, grafanaPassword, err := localstack.LoadGrafanaCredentials(rootDir)
+			if err != nil {
+				return err
+			}
 			contextName := defaultLocalContextName
 			token := ""
 			if state, err := localstack.LoadState(rootDir); err == nil && state != nil {
+				if strings.TrimSpace(state.GrafanaURL) != "" {
+					grafanaURL = strings.TrimSpace(state.GrafanaURL)
+				}
+				if strings.TrimSpace(state.GrafanaUser) != "" {
+					grafanaUser = strings.TrimSpace(state.GrafanaUser)
+				}
+				if state.GrafanaPassword != "" {
+					grafanaPassword = state.GrafanaPassword
+				}
 				if strings.TrimSpace(state.ContextName) != "" {
 					contextName = state.ContextName
 				}
@@ -170,7 +194,9 @@ func newLocalInfoCmd(opts *GlobalOptions, dirFlag *string) *cobra.Command {
 
 			fmt.Printf("Stack directory: %s\n", rootDir)
 			fmt.Printf("Context: %s\n", contextName)
-			fmt.Printf("Grafana URL: %s\n", localstack.DefaultGrafanaURL)
+			fmt.Printf("Grafana URL: %s\n", grafanaURL)
+			fmt.Printf("Grafana username: %s\n", grafanaUser)
+			fmt.Printf("Grafana password: %s\n", grafanaPassword)
 			fmt.Printf("OTLP gRPC endpoint: %s\n", localstack.DefaultOTLPGRPCEndpoint)
 			fmt.Printf("OTLP HTTP endpoint: %s\n", localstack.DefaultOTLPHTTPEndpoint)
 			if token == "" {
@@ -231,10 +257,21 @@ func newLocalPurgeCmd(opts *GlobalOptions, dirFlag *string) *cobra.Command {
 	return cmd
 }
 
-func runLocalSetup(opts *GlobalOptions, dirValue, contextName string, nonInteractive, switchContext bool) error {
+func runLocalSetup(opts *GlobalOptions, dirValue, contextName, grafanaUser, grafanaPassword string, nonInteractive, switchContext bool) error {
 	rootDir, err := localstack.ResolveRootDir(dirValue)
 	if err != nil {
 		return err
+	}
+
+	existingUser, existingPassword, err := localstack.LoadGrafanaCredentials(rootDir)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(existingUser) == "" {
+		existingUser = localstack.DefaultGrafanaAdminUser
+	}
+	if existingPassword == "" {
+		existingPassword = localstack.DefaultGrafanaAdminPassword
 	}
 
 	if !nonInteractive {
@@ -251,8 +288,41 @@ func runLocalSetup(opts *GlobalOptions, dirValue, contextName string, nonInterac
 		}
 	}
 
+	grafanaUser = strings.TrimSpace(grafanaUser)
+	if grafanaUser == "" {
+		grafanaUser = existingUser
+	}
+	if grafanaPassword == "" {
+		grafanaPassword = existingPassword
+	}
+
+	if !nonInteractive {
+		var err error
+		grafanaUser, err = promptStringDefault("Grafana admin username", grafanaUser)
+		if err != nil {
+			return err
+		}
+		grafanaPassword, err = promptStringDefault("Grafana admin password", grafanaPassword)
+		if err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(grafanaUser) == "" {
+		return errors.New("grafana admin username cannot be empty")
+	}
+	if grafanaPassword == "" {
+		return errors.New("grafana admin password cannot be empty")
+	}
+
 	fmt.Println("Checking Docker...")
 	if err := localstack.CheckDockerReady(); err != nil {
+		return err
+	}
+
+	if err := localstack.EnsureScaffold(rootDir); err != nil {
+		return err
+	}
+	if err := localstack.WriteGrafanaEnv(rootDir, grafanaUser, grafanaPassword); err != nil {
 		return err
 	}
 
@@ -264,14 +334,14 @@ func runLocalSetup(opts *GlobalOptions, dirValue, contextName string, nonInterac
 	fmt.Println("Waiting for Grafana...")
 	healthCtx, cancelHealth := context.WithTimeout(context.Background(), localGrafanaWaitTimeout)
 	defer cancelHealth()
-	if err := localstack.WaitForGrafana(healthCtx, localstack.DefaultGrafanaURL, localstack.DefaultGrafanaUser, localstack.DefaultGrafanaPassword); err != nil {
+	if err := localstack.WaitForGrafana(healthCtx, localstack.DefaultGrafanaURL); err != nil {
 		return err
 	}
 
 	fmt.Println("Creating service token...")
 	tokenCtx, cancelToken := context.WithTimeout(context.Background(), localTokenCreateTimeout)
 	defer cancelToken()
-	token, err := localstack.EnsureServiceToken(tokenCtx, localstack.DefaultGrafanaURL, localstack.DefaultGrafanaUser, localstack.DefaultGrafanaPassword, localServiceAccountName)
+	token, err := localstack.EnsureServiceToken(tokenCtx, localstack.DefaultGrafanaURL, grafanaUser, grafanaPassword, localServiceAccountName)
 	if err != nil {
 		return err
 	}
@@ -286,10 +356,12 @@ func runLocalSetup(opts *GlobalOptions, dirValue, contextName string, nonInterac
 	}
 
 	if err := localstack.SaveState(rootDir, localstack.State{
-		GrafanaURL:   localstack.DefaultGrafanaURL,
-		GrafanaToken: token,
-		ContextName:  name,
-		CreatedAtUTC: time.Now().UTC(),
+		GrafanaURL:      localstack.DefaultGrafanaURL,
+		GrafanaUser:     grafanaUser,
+		GrafanaPassword: grafanaPassword,
+		GrafanaToken:    token,
+		ContextName:     name,
+		CreatedAtUTC:    time.Now().UTC(),
 	}); err != nil {
 		return err
 	}
@@ -297,6 +369,8 @@ func runLocalSetup(opts *GlobalOptions, dirValue, contextName string, nonInterac
 	fmt.Println()
 	fmt.Println("Local observability stack is ready.")
 	fmt.Printf("Grafana URL: %s\n", localstack.DefaultGrafanaURL)
+	fmt.Printf("Grafana username: %s\n", grafanaUser)
+	fmt.Printf("Grafana password: %s\n", grafanaPassword)
 	fmt.Printf("Grafana service token: %s\n", token)
 	fmt.Printf("OTLP gRPC endpoint: %s\n", localstack.DefaultOTLPGRPCEndpoint)
 	fmt.Printf("OTLP HTTP endpoint: %s\n", localstack.DefaultOTLPHTTPEndpoint)
@@ -361,6 +435,24 @@ func removeContextFromConfig(opts *GlobalOptions, contextName string) (bool, str
 		return false, "", err
 	}
 	return true, path, nil
+}
+
+func promptStringDefault(prompt, fallback string) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	if fallback != "" {
+		fmt.Printf("%s [%s]: ", prompt, fallback)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+	line, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	in := strings.TrimSpace(line)
+	if in == "" {
+		return fallback, nil
+	}
+	return in, nil
 }
 
 func promptYesNo(prompt string, defaultYes bool) (bool, error) {

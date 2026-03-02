@@ -52,6 +52,8 @@ go install github.com/derekurban/grafana-query@latest
 npm install -g grafquery
 ```
 
+The npm installer also installs `grafquery`/`grafquery.exe` into `~/.local/bin` and will attempt to add that directory to your user `PATH` automatically.
+
 ### Local observability stack (Docker)
 
 ```bash
@@ -59,6 +61,7 @@ grafquery local setup
 ```
 
 This interactive setup boots a local Grafana + Loki + Prometheus + Tempo stack, exposes OTLP ingest endpoints, creates a Grafana service token, and writes a ready-to-use `grafquery` context.
+During setup you can accept the default Grafana admin credentials (`admin` / `admin`) or provide your own.
 
 ## Releasing
 
@@ -94,7 +97,7 @@ You can replace `--patch` with `--minor` or `--major`.
 - `grafquery local up`
 - `grafquery local down`
 - `grafquery local status`
-- `grafquery local info` (shows OTLP endpoints + Grafana service token)
+- `grafquery local info` (shows OTLP endpoints + Grafana URL/username/password/service token)
 - `grafquery local purge` (removes containers, volumes, local files, and local context)
 
 ## Quick start
