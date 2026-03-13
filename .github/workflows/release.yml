@@ -69,6 +69,10 @@ jobs:
       - name: Prepare npm package version
         run: node scripts/release/prepare-npm-package.mjs "${GITHUB_REF_NAME}"
 
+      - name: Verify npm package
+        run: npm pack --dry-run
+        working-directory: packaging/npm-wabsignal-cli
+
       - name: Publish npm package
         run: |
           if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
