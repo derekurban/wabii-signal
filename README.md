@@ -48,6 +48,11 @@ When run in an interactive terminal, `wabsignal setup` now launches a guided
 TUI wizard by default. Use `--non-interactive` only for explicit operator
 automation where every required flag is already known.
 
+The setup wizard now includes explicit guidance on where to find each required
+Grafana Cloud value, including the stack name, read token, OTLP endpoint,
+OTLP instance ID, and the extra access-policy fields needed for full-access
+mode.
+
 Use either the stack URL or the stack name:
 
 ```bash

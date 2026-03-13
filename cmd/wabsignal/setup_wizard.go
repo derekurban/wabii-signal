@@ -54,6 +54,57 @@ func runSetupWizard(state *setupWizardState) error {
 
 	baseForm := huh.NewForm(
 		huh.NewGroup(
+			huh.NewNote().
+				Title("Before You Start").
+				Description(strings.TrimSpace(`
+wabsignal setup is a human-only machine bootstrap.
+
+Have these Grafana values ready before continuing:
+
+- Stack name or Grafana stack URL
+- Grafana service account token for read/query access
+- Grafana OTLP endpoint
+- Grafana OTLP instance ID
+
+If you choose full-access mode, you also need:
+
+- Grafana Cloud access-policy management token
+- Grafana Cloud stack ID
+- Grafana Cloud region
+
+Agents should not run setup. After this wizard finishes, agents can use
+project, run, doctor, logs, metrics, traces, query, and correlate safely.
+`)).
+				Next(true).
+				NextLabel("Start setup"),
+		).Title("Welcome"),
+		huh.NewGroup(
+			huh.NewNote().
+				Title("Where To Find Grafana Values").
+				Description(strings.TrimSpace(`
+Typical places to copy values from in Grafana Cloud:
+
+- Stack name:
+  Usually the subdomain in https://<stack>.grafana.net
+
+- Grafana read token:
+  Create a service account token for Grafana HTTP API reads
+
+- OTLP endpoint and instance ID:
+  Found in the Grafana Cloud OTLP/OpenTelemetry connection instructions
+
+- Policy token, stack ID, and region:
+  Needed only for full-access mode and usually taken from Grafana Cloud access
+  policy / stack administration pages
+
+Tip:
+If you already know the full read URL, you can paste it directly as the
+Grafana API URL instead of using the stack name.
+`)).
+				Next(true).
+				NextLabel("Enter connection details"),
+		).Title("Grafana Values"),
+		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Setup mode").
 				Description("Restrictive keeps project write tokens manual. Full-access lets wabsignal create and rotate project write tokens for you.").
@@ -100,6 +151,20 @@ func runSetupWizard(state *setupWizardState) error {
 	}
 
 	fullAccessForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().
+				Title("Full-Access Mode").
+				Description(strings.TrimSpace(`
+Full-access mode lets wabii-signal create, rotate, and delete project write
+tokens automatically.
+
+Use this only when you are comfortable storing a high-privilege management
+credential in your OS keyring. If you prefer to create project write tokens
+yourself, exit and re-run setup in restrictive mode instead.
+`)).
+				Next(true).
+				NextLabel("Enter management details"),
+		).Title("Access Policy Automation"),
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Grafana Cloud policy token").
