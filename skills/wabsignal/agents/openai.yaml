@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wabii Signal"
+  short_description: "Grafana OTLP bootstrap and query workflows"
+  default_prompt: "Use $wabsignal to bootstrap OTLP env, validate telemetry wiring, and investigate app behavior through project-scoped logs, metrics, traces, and correlations while keeping setup human-only."
