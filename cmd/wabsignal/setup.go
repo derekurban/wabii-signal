@@ -133,7 +133,7 @@ Setup configures three distinct planes:
 			if err != nil {
 				return err
 			}
-			grafanaAPIURL, err = normalizeURL(grafanaAPIURL, "grafana api url")
+			grafanaAPIURL, err = normalizeURL(grafanaAPIURL, "grafana api url", false)
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ Setup configures three distinct planes:
 			if err != nil {
 				return err
 			}
-			otlpEndpoint, err = normalizeURL(otlpEndpoint, "otlp endpoint")
+			otlpEndpoint, err = normalizeURL(otlpEndpoint, "otlp endpoint", true)
 			if err != nil {
 				return err
 			}
@@ -320,7 +320,7 @@ Setup configures three distinct planes:
 	return cmd
 }
 
-func normalizeURL(rawURL, label string) (string, error) {
+func normalizeURL(rawURL, label string, preservePath bool) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
 		return "", fmt.Errorf("%s is required", label)
@@ -336,7 +336,9 @@ func normalizeURL(rawURL, label string) (string, error) {
 		parsed.Host = parsed.Path
 		parsed.Path = ""
 	}
-	parsed.Path = ""
+	if !preservePath {
+		parsed.Path = ""
+	}
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return strings.TrimRight(parsed.String(), "/"), nil
