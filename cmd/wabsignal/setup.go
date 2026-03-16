@@ -427,14 +427,14 @@ func createSetupValidationProject(ctx context.Context, setup cfg.SetupConfig, ma
 		return nil, nil, fmt.Errorf("failed to create setup smoke access policy: %w", err)
 	}
 
-	token, err := client.CreateToken(ctx, policy.ID, cloudapi.CreateTokenRequest{
+	token, err := client.CreateToken(ctx, setup.Cloud.Region, policy.ID, cloudapi.CreateTokenRequest{
 		Name:        managedResourceName(projectName, serviceName, "token"),
 		DisplayName: fmt.Sprintf("wabsignal setup smoke token %s", suffix),
 	})
 	if err != nil {
 		cleanupCtx, cancel := timeoutContext(20)
 		defer cancel()
-		_ = client.DeleteAccessPolicy(cleanupCtx, policy.ID)
+		_ = client.DeleteAccessPolicy(cleanupCtx, setup.Cloud.Region, policy.ID)
 		return nil, nil, fmt.Errorf("failed to create setup smoke token: %w", err)
 	}
 
@@ -453,7 +453,7 @@ func createSetupValidationProject(ctx context.Context, setup cfg.SetupConfig, ma
 	cleanup := func() error {
 		cleanupCtx, cancel := timeoutContext(20)
 		defer cancel()
-		return client.DeleteAccessPolicy(cleanupCtx, policy.ID)
+		return client.DeleteAccessPolicy(cleanupCtx, setup.Cloud.Region, policy.ID)
 	}
 	return project, cleanup, nil
 }

@@ -77,7 +77,7 @@ or datasource setups from silently being accepted.
   wabsignal project create shop-api shop-api --write-token "$GRAFANA_WRITE_TOKEN"
   wabsignal project create storefront shop-api shop-web shop-worker
 `),
-		Args:  cobra.MinimumNArgs(2),
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, path, err := loadConfigFromFlags(opts)
 			if err != nil {
@@ -281,7 +281,7 @@ can stamp telemetry for the current debugging session.
   wabsignal project env shop-api --format dotenv
   wabsignal project env shop-api --format json
 `),
-		Args:  cobra.MaximumNArgs(1),
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, _, err := loadConfigFromFlags(opts)
 			if err != nil {
@@ -702,12 +702,12 @@ func createManagedProjectToken(ctx context.Context, config *cfg.Config, project 
 		return fmt.Errorf("failed to create access policy: %w", err)
 	}
 
-	token, err := client.CreateToken(ctx, policy.ID, cloudapi.CreateTokenRequest{
+	token, err := client.CreateToken(ctx, config.Setup.Cloud.Region, policy.ID, cloudapi.CreateTokenRequest{
 		Name:        managedResourceName(project.Name, project.PrimaryService, "token"),
 		DisplayName: fmt.Sprintf("wabsignal %s token", project.Name),
 	})
 	if err != nil {
-		_ = client.DeleteAccessPolicy(ctx, policy.ID)
+		_ = client.DeleteAccessPolicy(ctx, config.Setup.Cloud.Region, policy.ID)
 		return fmt.Errorf("failed to create access token: %w", err)
 	}
 
@@ -730,7 +730,7 @@ func createManagedToken(ctx context.Context, config *cfg.Config, project *cfg.Pr
 	}
 
 	client := cloudapi.New(managementToken)
-	token, err := client.CreateToken(ctx, project.ManagedPolicyID, cloudapi.CreateTokenRequest{
+	token, err := client.CreateToken(ctx, config.Setup.Cloud.Region, project.ManagedPolicyID, cloudapi.CreateTokenRequest{
 		Name:        managedResourceName(project.Name, project.PrimaryService, "token"),
 		DisplayName: fmt.Sprintf("wabsignal %s token", project.Name),
 	})
@@ -754,10 +754,10 @@ func cleanupManagedProjectResources(ctx context.Context, config *cfg.Config, pro
 
 	client := cloudapi.New(managementToken)
 	if strings.TrimSpace(project.ManagedPolicyID) != "" {
-		return client.DeleteAccessPolicy(ctx, project.ManagedPolicyID)
+		return client.DeleteAccessPolicy(ctx, config.Setup.Cloud.Region, project.ManagedPolicyID)
 	}
-	if strings.TrimSpace(project.ManagedTokenID) != "" && strings.TrimSpace(project.ManagedPolicyID) != "" {
-		return client.DeleteToken(ctx, project.ManagedPolicyID, project.ManagedTokenID)
+	if strings.TrimSpace(project.ManagedTokenID) != "" {
+		return client.DeleteToken(ctx, config.Setup.Cloud.Region, project.ManagedTokenID)
 	}
 	return nil
 }
@@ -772,7 +772,7 @@ func deleteManagedToken(ctx context.Context, config *cfg.Config, accessPolicyID,
 	}
 
 	client := cloudapi.New(managementToken)
-	return client.DeleteToken(ctx, accessPolicyID, tokenID)
+	return client.DeleteToken(ctx, config.Setup.Cloud.Region, tokenID)
 }
 
 func validateProjectWriteToken(ctx context.Context, config *cfg.Config, projectName string, project *cfg.Project, readClient *grafana.Client, sources []grafana.DataSource) (*traceSmokeResult, error) {

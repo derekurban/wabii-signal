@@ -41,15 +41,45 @@ type CreateAccessPolicyRequest struct {
 }
 
 type Token struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Key         string `json:"key,omitempty"`
+	ID             string `json:"id"`
+	AccessPolicyID string `json:"accessPolicyId"`
+	Name           string `json:"name"`
+	DisplayName    string `json:"displayName"`
+	Key            string `json:"token,omitempty"`
 }
 
 type CreateTokenRequest struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
+	AccessPolicyID string `json:"accessPolicyId,omitempty"`
+	Name           string `json:"name"`
+	DisplayName    string `json:"displayName"`
+}
+
+type listResponse[T any] struct {
+	Items []T `json:"items"`
+}
+
+func (t *Token) UnmarshalJSON(data []byte) error {
+	type rawToken struct {
+		ID             string `json:"id"`
+		AccessPolicyID string `json:"accessPolicyId"`
+		Name           string `json:"name"`
+		DisplayName    string `json:"displayName"`
+		Token          string `json:"token"`
+		Key            string `json:"key"`
+	}
+	var raw rawToken
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	t.ID = raw.ID
+	t.AccessPolicyID = raw.AccessPolicyID
+	t.Name = raw.Name
+	t.DisplayName = raw.DisplayName
+	t.Key = strings.TrimSpace(raw.Token)
+	if t.Key == "" {
+		t.Key = strings.TrimSpace(raw.Key)
+	}
+	return nil
 }
 
 func New(token string) *Client {
@@ -75,8 +105,26 @@ func (c *Client) ListAccessPolicies(ctx context.Context, region, stackID string)
 		params.Set("realmType", "stack")
 		params.Set("realmIdentifier", trimmed)
 	}
-	out := []AccessPolicy{}
-	if err := c.getJSON(ctx, "/api/v1/accesspolicies", params, &out); err != nil {
+	resp, err := c.do(ctx, http.MethodGet, "/api/v1/accesspolicies", params, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("grafana cloud api failed: %s - %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped listResponse[AccessPolicy]
+	if err := json.Unmarshal(body, &wrapped); err == nil && wrapped.Items != nil {
+		return wrapped.Items, nil
+	}
+	var out []AccessPolicy
+	if err := json.Unmarshal(body, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -94,9 +142,13 @@ func (c *Client) CreateAccessPolicy(ctx context.Context, region string, req Crea
 	return out, nil
 }
 
-func (c *Client) DeleteAccessPolicy(ctx context.Context, accessPolicyID string) error {
+func (c *Client) DeleteAccessPolicy(ctx context.Context, region, accessPolicyID string) error {
 	endpoint := fmt.Sprintf("/api/v1/accesspolicies/%s", url.PathEscape(strings.TrimSpace(accessPolicyID)))
-	resp, err := c.do(ctx, http.MethodDelete, endpoint, nil, nil)
+	params := url.Values{}
+	if trimmed := strings.TrimSpace(region); trimmed != "" {
+		params.Set("region", trimmed)
+	}
+	resp, err := c.do(ctx, http.MethodDelete, endpoint, params, nil)
 	if err != nil {
 		return err
 	}
@@ -108,22 +160,26 @@ func (c *Client) DeleteAccessPolicy(ctx context.Context, accessPolicyID string) 
 	return nil
 }
 
-func (c *Client) CreateToken(ctx context.Context, accessPolicyID string, req CreateTokenRequest) (*Token, error) {
+func (c *Client) CreateToken(ctx context.Context, region, accessPolicyID string, req CreateTokenRequest) (*Token, error) {
 	out := &Token{}
-	endpoint := fmt.Sprintf("/api/v1/accesspolicies/%s/tokens", url.PathEscape(strings.TrimSpace(accessPolicyID)))
-	if err := c.postJSON(ctx, endpoint, nil, req, out); err != nil {
+	params := url.Values{}
+	if trimmed := strings.TrimSpace(region); trimmed != "" {
+		params.Set("region", trimmed)
+	}
+	req.AccessPolicyID = strings.TrimSpace(accessPolicyID)
+	if err := c.postJSON(ctx, "/api/v1/tokens", params, req, out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *Client) DeleteToken(ctx context.Context, accessPolicyID, tokenID string) error {
-	endpoint := fmt.Sprintf(
-		"/api/v1/accesspolicies/%s/tokens/%s",
-		url.PathEscape(strings.TrimSpace(accessPolicyID)),
-		url.PathEscape(strings.TrimSpace(tokenID)),
-	)
-	resp, err := c.do(ctx, http.MethodDelete, endpoint, nil, nil)
+func (c *Client) DeleteToken(ctx context.Context, region, tokenID string) error {
+	endpoint := fmt.Sprintf("/api/v1/tokens/%s", url.PathEscape(strings.TrimSpace(tokenID)))
+	params := url.Values{}
+	if trimmed := strings.TrimSpace(region); trimmed != "" {
+		params.Set("region", trimmed)
+	}
+	resp, err := c.do(ctx, http.MethodDelete, endpoint, params, nil)
 	if err != nil {
 		return err
 	}
