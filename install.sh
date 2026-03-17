@@ -12,6 +12,7 @@ VERSION="${WABSIGNAL_VERSION:-${GRAFQUERY_VERSION:-${GRAFANA_QUERY_VERSION:-late
 AUTO_PATH="${WABSIGNAL_AUTO_PATH:-${GRAFQUERY_AUTO_PATH:-${GRAFANA_QUERY_AUTO_PATH:-1}}}" # 1/true/yes/on -> persist PATH update
 VERIFY_SIGNATURES="${WABSIGNAL_VERIFY_SIGNATURES:-${GRAFQUERY_VERIFY_SIGNATURES:-${GRAFANA_QUERY_VERIFY_SIGNATURES:-1}}}" # 1/true/yes/on -> enforce cosign verification
 ALLOW_SOURCE_FALLBACK="${WABSIGNAL_ALLOW_SOURCE_FALLBACK:-${GRAFQUERY_ALLOW_SOURCE_FALLBACK:-${GRAFANA_QUERY_ALLOW_SOURCE_FALLBACK:-0}}}" # 1/true/yes/on -> allow go install fallback
+CACHE_DIR="${WABSIGNAL_CACHE_DIR:-${GRAFQUERY_CACHE_DIR:-${GRAFANA_QUERY_CACHE_DIR:-$HOME/.cache/wabsignal}}}"
 COSIGN_VERSION="${WABSIGNAL_COSIGN_VERSION:-${GRAFQUERY_COSIGN_VERSION:-${GRAFANA_QUERY_COSIGN_VERSION:-v2.5.3}}}"
 if [[ "$REPO" == "$OFFICIAL_REPO" || "$REPO" == "$LEGACY_REPO" || "$REPO" == "derekurban2001/grafana-query" ]]; then
   DEFAULT_COSIGN_IDENTITY_RE="^https://github.com/(derekurban/wabii-signal|derekurban/grafana-query|derekurban2001/grafana-query)/.github/workflows/release.yml@refs/tags/.*$"
@@ -177,12 +178,19 @@ ensure_cosign() {
     return 0
   fi
 
-  local asset suffix url out
+  local asset suffix url out cache_dir cache_path
   suffix=""
   if [[ "$os" == "windows" ]]; then
     suffix=".exe"
   fi
   asset="cosign-${os}-${arch}${suffix}"
+  cache_dir="${CACHE_DIR}/cosign/${COSIGN_VERSION}"
+  cache_path="${cache_dir}/${asset}"
+  if [[ -x "$cache_path" ]]; then
+    log "using cached cosign ${COSIGN_VERSION} (${os}/${arch}) from ${cache_path}"
+    printf "%s" "$cache_path"
+    return 0
+  fi
   url="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${asset}"
   out="${tmpdir}/${asset}"
 
@@ -191,8 +199,11 @@ ensure_cosign() {
     warn "Unable to download cosign from ${url}"
     return 1
   }
+  mkdir -p "$cache_dir"
+  cp "$out" "$cache_path"
+  chmod +x "$cache_path" || true
   chmod +x "$out" || true
-  printf "%s" "$out"
+  printf "%s" "$cache_path"
 }
 
 verify_checksums_signature() {

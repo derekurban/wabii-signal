@@ -15,7 +15,7 @@ Keep one boundary strict:
 ## Quick start
 
 1. Confirm `wabsignal` is installed and machine setup already exists.
-2. Resolve the current project or create/switch one if the human asked for that.
+2. Resolve the target project and pass it explicitly on read commands.
 3. Emit project OTLP env and apply it to the app or test process.
 4. Start a run scope before QA, replay, or manual testing.
 5. Use `doctor`, `logs`, `metrics`, `traces`, and `correlate` to inspect evidence.
@@ -53,12 +53,12 @@ wabsignal doctor --output json
 Interpretation:
 
 - If `doctor` fails with `run \`wabsignal setup\` first`, stop and hand setup back to the human.
-- If setup exists but there is no current project, inspect projects with `wabsignal project list --output json`.
+- If setup exists but the target project is unknown, inspect projects with `wabsignal project list --output json`.
 - If a project exists but datasource mapping or smoke tests fail, use `doctor` output to decide whether to switch project, set sources, or ask the human for missing write credentials.
 
 ### 2. Resolve the project
 
-Prefer the current project. If a specific project name is relevant, run:
+Read commands require an explicit project. Resolve the target project first:
 
 ```powershell
 wabsignal project show <project> --output json
@@ -156,27 +156,27 @@ If you want only one run, include the run ID explicitly in the query.
 ### Find recent errors
 
 ```powershell
-wabsignal logs '{} |= "error"' --since 30m --output json
+wabsignal --project <project> logs '{} |= "error"' --since 30m --output json
 ```
 
 ### Check whether the service is alive
 
 ```powershell
-wabsignal metrics 'up' --output json
+wabsignal --project <project> metrics 'up' --output json
 ```
 
 ### Inspect slow or failing traces
 
 ```powershell
-wabsignal traces '{}' --since 30m --output json
-wabsignal traces get <trace-id> --since 24h --output json
+wabsignal --project <project> traces '{}' --since 30m --output json
+wabsignal --project <project> traces get <trace-id> --since 24h --output json
 ```
 
 ### Pull a cross-signal view
 
 ```powershell
-wabsignal correlate --service <service> --since 15m --output json
-wabsignal correlate --trace-id <trace-id> --output json
+wabsignal --project <project> correlate --service <service> --since 15m --output json
+wabsignal --project <project> correlate --trace-id <trace-id> --output json
 ```
 
 ## Failure handling
@@ -186,7 +186,7 @@ Use this decision rule:
 - Missing setup or keyring secrets: stop and hand off to the human.
 - Missing project write token in restrictive mode: ask the human for the project write token.
 - Datasource mismatch: fix with `project set-source` or `project set-scope`.
-- No current project: switch with `project use` or create one if the user asked.
+- Missing explicit project on a read command: add `--project <name>` instead of relying on the mutable current project.
 - Query returned no evidence: broaden time range before dropping project scoping.
 
 ## Output discipline

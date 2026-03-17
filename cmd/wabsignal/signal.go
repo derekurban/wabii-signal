@@ -53,7 +53,10 @@ func newSignalCmd(opts *GlobalOptions, signal string) *cobra.Command {
 }
 
 func runSignalOnce(opts *GlobalOptions, signal, expr, since, from, to string, limit int, instant, noProjectScope bool) error {
-	cl, config, project, _, err := buildClient(opts)
+	if err := requireExplicitReadProject(opts, signal); err != nil {
+		return err
+	}
+	cl, config, project, projectName, err := buildClient(opts)
 	if err != nil {
 		return err
 	}
@@ -106,7 +109,26 @@ func runSignalOnce(opts *GlobalOptions, signal, expr, since, from, to string, li
 			mode = "table"
 		}
 	}
+	if len(rows) == 0 && !noProjectScope && project != nil && !isJSONOutput(mode) {
+		fmt.Printf("No rows for current scope: project=%s services=%s\n", projectName, strings.Join(project.AllServices(), ","))
+		fmt.Printf("Try `wabsignal --project %s %s %q --since %s`, `wabsignal project use %s`, or `--no-project-scope`.\n\n", projectName, signal, argsafeExpr(expr), sinceOrDefault(since), projectName)
+	}
 	return renderByOutput(mode, resp, rows)
+}
+
+func sinceOrDefault(since string) string {
+	if strings.TrimSpace(since) == "" {
+		return "1h"
+	}
+	return strings.TrimSpace(since)
+}
+
+func argsafeExpr(expr string) string {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return "{}"
+	}
+	return expr
 }
 
 func runSignalWatch(opts *GlobalOptions, signal, expr, since, from, to string, limit int, instant bool, every time.Duration, noProjectScope bool) error {
@@ -140,6 +162,9 @@ func newTracesGetCmd(opts *GlobalOptions) *cobra.Command {
 }
 
 func runTraceGetByID(opts *GlobalOptions, traceID, since, from, to string, limit int) error {
+	if err := requireExplicitReadProject(opts, "traces"); err != nil {
+		return err
+	}
 	cl, config, project, _, err := buildClient(opts)
 	if err != nil {
 		return err
@@ -193,25 +218,29 @@ func signalLongHelp(signal string) string {
 		return strings.TrimSpace(`
 Run LogQL-style log queries through the configured Grafana logs datasource.
 
-By default, wabii-signal injects project service scope into the query when a
-project is active. Use --no-project-scope when you need to inspect the broader
+Read commands require an explicit --project to avoid silently reusing a mutable
+current project from another session or agent.
+
+Wabii-signal injects project service scope into the query. Use
+--no-project-scope only when you intentionally want to inspect the broader
 stack. If you need a specific run, filter for the run ID explicitly.
 `)
 	case "metrics":
 		return strings.TrimSpace(`
 Run metric queries through the configured Grafana metrics datasource.
 
-Metrics default to instant mode because most debugging use cases want the
-current answer rather than a full chart. You can still change the range and
-watch the query repeatedly during live debugging.
+Metrics require an explicit --project and default to instant mode because most
+debugging use cases want the current answer rather than a full chart. You can
+still change the range and watch the query repeatedly during live debugging.
 `)
 	case "traces":
 		return strings.TrimSpace(`
 Run trace queries through the configured Grafana traces datasource.
 
-Like the other signal commands, traces are automatically scoped by project
-service. Use "traces get" to retrieve a specific trace by ID. If you need a
-specific run, filter for the run ID explicitly.
+Like the other signal commands, traces require an explicit --project and are
+automatically scoped by project service. Use "traces get" to retrieve a
+specific trace by ID. If you need a specific run, filter for the run ID
+explicitly.
 `)
 	default:
 		return ""
@@ -222,21 +251,21 @@ func signalExampleHelp(signal string) string {
 	switch signal {
 	case "logs":
 		return strings.TrimSpace(`
-  wabsignal logs '{} |= "error"' --since 30m
-  wabsignal logs '{service_name="shop-api"} |= "timeout"' --no-project-scope
-  wabsignal logs '{} |= "panic"' --watch 5s
+  wabsignal --project shop-api logs '{} |= "error"' --since 30m
+  wabsignal --project shop-api logs '{service_name="shop-api"} |= "timeout"' --no-project-scope
+  wabsignal --project shop-api logs '{} |= "panic"' --watch 5s
 `)
 	case "metrics":
 		return strings.TrimSpace(`
-  wabsignal metrics 'sum(rate(http_server_duration_seconds_count[5m]))'
-  wabsignal metrics 'histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket[5m])) by (le, service_name))'
-  wabsignal metrics 'up' --watch 10s
+  wabsignal --project shop-api metrics 'sum(rate(http_server_duration_seconds_count[5m]))'
+  wabsignal --project shop-api metrics 'histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket[5m])) by (le, service_name))'
+  wabsignal --project shop-api metrics 'up' --watch 10s
 `)
 	case "traces":
 		return strings.TrimSpace(`
-  wabsignal traces '{}'
-  wabsignal traces '{ resource.service.name = "shop-api" }' --no-project-scope
-  wabsignal traces get 4f4a6e3f7b1f4c9c --since 24h
+  wabsignal --project shop-api traces '{}'
+  wabsignal --project shop-api traces '{ resource.service.name = "shop-api" }' --no-project-scope
+  wabsignal --project shop-api traces get 4f4a6e3f7b1f4c9c --since 24h
 `)
 	default:
 		return ""

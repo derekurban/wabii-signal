@@ -34,14 +34,19 @@ Correlate has two main modes:
 
 This is intended to be the quick "what happened across the signals?" command
 for both humans and agents.
+
+Correlate requires an explicit --project so the query scope is deterministic.
 `),
 		Example: strings.TrimSpace(`
-  wabsignal correlate --trace-id 4f4a6e3f7b1f4c9c
-  wabsignal correlate --service shop-api --since 15m
-  wabsignal correlate --since 30m
-  wabsignal correlate --trace-id 4f4a6e3f7b1f4c9c --output json
+  wabsignal --project shop-api correlate --trace-id 4f4a6e3f7b1f4c9c
+  wabsignal --project shop-api correlate --service shop-api --since 15m
+  wabsignal --project shop-api correlate --since 30m
+  wabsignal --project shop-api correlate --trace-id 4f4a6e3f7b1f4c9c --output json
 `),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireExplicitReadProject(opts, "correlate"); err != nil {
+				return err
+			}
 			if strings.TrimSpace(traceID) == "" && strings.TrimSpace(service) == "" {
 				if noProjectScope {
 					return fmt.Errorf("set --trace-id or --service")

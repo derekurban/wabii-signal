@@ -157,13 +157,13 @@ Most lifecycle commands also support `--output json` for agent-friendly automati
 ## Query workflow
 
 ```bash
-wabsignal logs '{} |= "error"' --since 30m
-wabsignal metrics 'sum(rate(http_server_duration_seconds_count[5m]))'
-wabsignal traces '{}'
-wabsignal correlate --trace-id 4f4a6e3f7b1f4c9c
+wabsignal --project shop-api logs '{} |= "error"' --since 30m
+wabsignal --project shop-api metrics 'sum(rate(http_server_duration_seconds_count[5m]))'
+wabsignal --project shop-api traces '{}'
+wabsignal --project shop-api correlate --trace-id 4f4a6e3f7b1f4c9c
 ```
 
-By default, reads are scoped to the project's primary and extra services. Use `--no-project-scope` when you need to bypass that.
+Read commands require `--project <name>` and are scoped to that project's primary and extra services. Use `--no-project-scope` only when you intentionally want to bypass that.
 
 If a run scope is active through `wabsignal run start`, `project env` includes `WABSIGNAL_RUN_ID` so the app can stamp telemetry for that debugging session. Generic reads stay project-scoped by default; filter on the run ID explicitly when you want only one run.
 

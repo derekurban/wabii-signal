@@ -57,10 +57,10 @@ Important boundary:
   wabsignal project env shop-api --format dotenv
 
   # Inspect runtime evidence
-  wabsignal doctor
-  wabsignal logs '{} |= "error"' --since 30m
-  wabsignal traces '{}'
-  wabsignal correlate --trace-id 4f4a6e3f7b1f4c9c
+  wabsignal --project shop-api doctor
+  wabsignal --project shop-api logs '{} |= "error"' --since 30m
+  wabsignal --project shop-api traces '{}'
+  wabsignal --project shop-api correlate --trace-id 4f4a6e3f7b1f4c9c
 `),
 		SilenceUsage:  true,
 		SilenceErrors: true,

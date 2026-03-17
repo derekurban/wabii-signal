@@ -29,6 +29,8 @@ $AutoPathRaw = Get-EnvValue -Names @("WABSIGNAL_AUTO_PATH", "GRAFQUERY_AUTO_PATH
 $VerifySignaturesRaw = Get-EnvValue -Names @("WABSIGNAL_VERIFY_SIGNATURES", "GRAFQUERY_VERIFY_SIGNATURES", "GRAFANA_QUERY_VERIFY_SIGNATURES") -Default "1"
 $AllowSourceFallbackRaw = Get-EnvValue -Names @("WABSIGNAL_ALLOW_SOURCE_FALLBACK", "GRAFQUERY_ALLOW_SOURCE_FALLBACK", "GRAFANA_QUERY_ALLOW_SOURCE_FALLBACK") -Default "0"
 $AutoInstallGoRaw = Get-EnvValue -Names @("WABSIGNAL_AUTO_INSTALL_GO", "GRAFQUERY_AUTO_INSTALL_GO", "GRAFANA_QUERY_AUTO_INSTALL_GO") -Default "1"
+$DefaultCacheRoot = if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { Join-Path $env:LOCALAPPDATA "wabsignal\cache" } else { Join-Path $HOME ".cache\wabsignal" }
+$CacheDir = Get-EnvValue -Names @("WABSIGNAL_CACHE_DIR", "GRAFQUERY_CACHE_DIR", "GRAFANA_QUERY_CACHE_DIR") -Default $DefaultCacheRoot
 $CosignVersion = Get-EnvValue -Names @("WABSIGNAL_COSIGN_VERSION", "GRAFQUERY_COSIGN_VERSION", "GRAFANA_QUERY_COSIGN_VERSION") -Default "v2.5.3"
 $DefaultCosignIdentityRegex = if ($Repo -eq $OfficialRepo -or $Repo -eq $LegacyRepo -or $Repo -eq "derekurban2001/grafana-query") {
   "^https://github.com/(derekurban/wabii-signal|derekurban/grafana-query|derekurban2001/grafana-query)/.github/workflows/release.yml@refs/tags/.*$"
@@ -235,12 +237,21 @@ function Ensure-Cosign {
   }
 
   $asset = "cosign-windows-$Arch.exe"
+  $cacheVersionDir = Join-Path $CacheDir ("cosign\" + $CosignVersion)
+  $cached = Join-Path $cacheVersionDir $asset
+  if (Test-Path $cached) {
+    Write-Log "Using cached cosign $CosignVersion (windows/$Arch) from $cached"
+    return $cached
+  }
+
   $url = "https://github.com/sigstore/cosign/releases/download/$CosignVersion/$asset"
   $outFile = Join-Path $TempDir $asset
 
   Write-Log "cosign not found; downloading $CosignVersion (windows/$Arch)"
   Invoke-Download -Url $url -OutFile $outFile
-  return $outFile
+  New-Item -Path $cacheVersionDir -ItemType Directory -Force | Out-Null
+  Copy-Item -Path $outFile -Destination $cached -Force
+  return $cached
 }
 
 function Verify-ChecksumsSignature {

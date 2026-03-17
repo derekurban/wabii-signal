@@ -39,19 +39,19 @@ wabsignal run stop --output json
 ## Query logs, metrics, traces
 
 ```powershell
-wabsignal logs '{} |= "error"' --since 30m --output json
-wabsignal logs '{} |= "panic"' --watch 5s
-wabsignal metrics 'sum(rate(http_server_duration_seconds_count[5m]))' --output json
-wabsignal metrics 'up' --watch 10s
-wabsignal traces '{}' --since 30m --output json
-wabsignal traces get 4f4a6e3f7b1f4c9c --since 24h --output json
+wabsignal --project shop-api logs '{} |= "error"' --since 30m --output json
+wabsignal --project shop-api logs '{} |= "panic"' --watch 5s
+wabsignal --project shop-api metrics 'sum(rate(http_server_duration_seconds_count[5m]))' --output json
+wabsignal --project shop-api metrics 'up' --watch 10s
+wabsignal --project shop-api traces '{}' --since 30m --output json
+wabsignal --project shop-api traces get 4f4a6e3f7b1f4c9c --since 24h --output json
 ```
 
 ## Correlate evidence
 
 ```powershell
-wabsignal correlate --service shop-api --since 15m --output json
-wabsignal correlate --trace-id 4f4a6e3f7b1f4c9c --output json
+wabsignal --project shop-api correlate --service shop-api --since 15m --output json
+wabsignal --project shop-api correlate --trace-id 4f4a6e3f7b1f4c9c --output json
 ```
 
 ## Override datasource or scope mapping

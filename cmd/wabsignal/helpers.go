@@ -2,8 +2,8 @@ package wabsignal
 
 import (
 	"bytes"
-	"crypto/rand"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -24,8 +24,8 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/protobuf/proto"
 	"golang.org/x/term"
+	"google.golang.org/protobuf/proto"
 )
 
 const setupHint = "run `wabsignal setup` first"
@@ -64,6 +64,13 @@ func requireSetup(opts *GlobalOptions) error {
 		return fmt.Errorf("read token lookup failed: %w", err)
 	}
 	return nil
+}
+
+func requireExplicitReadProject(opts *GlobalOptions, commandName string) error {
+	if strings.TrimSpace(opts.Project) != "" {
+		return nil
+	}
+	return fmt.Errorf("%s requires --project <name>; wabii-signal no longer falls back to the mutable current project for read commands", commandName)
 }
 
 func buildClient(opts *GlobalOptions) (*grafana.Client, *cfg.Config, *cfg.Project, string, error) {
